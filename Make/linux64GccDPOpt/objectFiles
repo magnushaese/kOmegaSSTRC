@@ -1,0 +1,3 @@
+OBJECTS = \
+$(OBJECTS_DIR)/RASModel.o\
+$(OBJECTS_DIR)/kOmegaSSTRC.o

@@ -1,0 +1,3 @@
+LOCAL_OBJECTS = \
+RASModel.o\
+kOmegaSSTRC.o
