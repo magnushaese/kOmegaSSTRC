@@ -435,13 +435,13 @@ kOmegaSSTRC::kOmegaSSTRC
 		fvc::ddt(S)
 	       +fvc::div
 		(
-		    this->phi_, S
+		    phi_, S
 		)
 	    );
 	volSymmTensorField DSDtTMP(divS);
         volTensorField OmegaSS(((S & DSDtTMP)- (DSDtTMP & S))/(2*magSqr(S) + dimensionedScalar("small", dimensionSet(0, 0, -2, 0, 0), 1E-14)));
 
-        volTensorField OmegaMod = W - OmegaSS;
+        volTensorField OmegaMod = W; // - OmegaSS;
         volScalarField T1(1/(betaStar_*omega_));
         volScalarField T2(scalar(6)*sqrt(nu()/(betaStar_*k_*omega_)));
         volScalarField T3(pow(pow(T1,1.625)*T2,1/2.625));
@@ -603,7 +603,57 @@ void kOmegaSSTRC::correct()
   if (spalartShurCorrection_)
 
 	{
+    tmp<volTensorField> tgradU = fvc::grad(U_);
+    tmp<volTensorField> tSkew = skew(tgradU()); // tmp<volTensorField> tSkew = skew(fvc::grad(U)); 
+tmp<volSymmTensorField> tSymm = symm(tgradU()); // tmp<volSymmTensorField> tSymm = symm(fvc::grad(U));
+// Compute rStar
+    volScalarField symInnerProduct(2.0*tSymm() && tSymm()); 
+    volScalarField asymInnerProduct
+    (
+        max(2.0*tSkew() && tSkew(),
+        dimensionedScalar("0", dimensionSet(0, 0, -2, 0, 0), 0.0))
+    );
+    volScalarField w
+    (
+        atan(dimensionedScalar("4",dimensionSet(0,0,2,0,0),1.0e-02)*asymInnerProduct)*2.0/scalar(3.14159)*(asymInnerProduct-symInnerProduct)+symInnerProduct
+    );
+    volScalarField rStar(sqrt(symInnerProduct/max(w, dimensionedScalar("minw", w.dimensions(), SMALL)))); //avoiding dividing by zero    volScalarField rStar(sqrt(symInnerProduct/w));
+     
+    // Compute rTilda 
+    volScalarField D(sqrt(max(symInnerProduct, 0.09*omega_*omega_)));
+    tmp<volSymmTensorField> divS =
+    (
+        fvc::ddt(tSymm())
+       +fvc::div
+        (
+            phi_, tSymm()
+        )
+    );
+    volScalarField rT((tSkew().T() & tSymm) && divS);
 
+    divS.clear();
+    tSkew.clear();
+    tSymm.clear();
+    
+    volScalarField w2
+    (
+        atan(dimensionedScalar("1",dimensionSet(0,0,2,0,0),1.0e-2)*asymInnerProduct)*2.0/scalar(3.14159)*(sqrt(asymInnerProduct)-D)+D //T
+    );
+    volScalarField rTilda(2.0*rT/w2/D/D/D);
+
+    (
+fr1_ =	max
+    	(
+		min
+		(
+        		(scalar(1.0)+Cr1_)*2.0*rStar/(scalar(1)+rStar)*(scalar(1.0)
+			-Cr3_*atan(Cr2_*rTilda))-Cr1_,
+        		scalar(1.25)
+		),
+			scalar(0.0)
+	)
+);
+/*
         gamma1_ = 0.35705; //0.5555; 
         gamma2_ = 0.4403546667;
         alphaOmega1_ = 0.65; //0.5;
@@ -646,7 +696,7 @@ void kOmegaSSTRC::correct()
             ),
             0.0
         );  
-  
+*/  
     }
 
 /////////////////////////////////////////////////////
@@ -680,7 +730,7 @@ void kOmegaSSTRC::correct()
 		fvc::ddt(S)
 	       +fvc::div
 		(
-		    this->phi_, S
+		    phi_, S
 		)
 	    );
 
@@ -688,7 +738,7 @@ void kOmegaSSTRC::correct()
         volTensorField OmegaSS(((S & DSDtTMP)- (DSDtTMP & S))/(2*magSqr(S) + dimensionedScalar("small", dimensionSet(0, 0, -2, 0, 0), 1E-14))); 
 
         volTensorField OmegaMod = W;
-				//+ 2/(0.4-2)*OmegaSS; 
+				+ 2/(0.4-2)*OmegaSS; 
 
 
         volScalarField Fw
@@ -733,16 +783,16 @@ void kOmegaSSTRC::correct()
       + fvm::SuSp(-fvc::div(phi_), omega_)
       - fvm::laplacian(DomegaEff(F1), omega_)
      ==
-        gamma(F1)
+        gamma(F1)*fr1_
        *min
         (
-            S2*fr1_,
+            S2,
             (c1_/a1_)*betaStar_*omega_*max(a1_*omega_, b1_*F23()*sqrt(S2))
         )
       - fvm::Sp(beta(F1)*omega_, omega_)
       - fvm::SuSp
         (
-            fr1_*(F1 - scalar(1))*CDkOmega/omega_,
+            (F1 - scalar(1))*CDkOmega/omega_,
             omega_
         )
     );
@@ -811,13 +861,13 @@ if(DhakalAndWalters_)
 		fvc::ddt(S)
 	       +fvc::div
 		(
-		    this->phi_, S
+		    phi_, S
 		)
 	    );
 	volSymmTensorField DSDtTMP(divS);
         volTensorField OmegaSS(((S & DSDtTMP)- (DSDtTMP & S))/(2*magSqr(S) + dimensionedScalar("small", dimensionSet(0, 0, -2, 0, 0), 1E-14)));
 
-        volTensorField OmegaMod = W - OmegaSS;
+        volTensorField OmegaMod = W; // - OmegaSS;
         volScalarField T1(1/(betaStar_*omega_));
         volScalarField T2(scalar(6)*sqrt(nu()/(betaStar_*k_*omega_)));
         volScalarField T3(pow(pow(T1,1.625)*T2,1/2.625));
